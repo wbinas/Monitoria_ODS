@@ -1,0 +1,94 @@
+package monitoria.ods.watcher;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import java.sql.Timestamp;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+public class Watching {
+	
+	private static Map<WatchKey, Path> keyPathMap = new HashMap<>();
+
+	   public static void main (String[] args) throws Exception {
+	       try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
+	           registerDir(Paths.get("C:\\Projeto\\ODS\\File"), watchService);
+	           registerDir(Paths.get("C:\\Projeto\\ODS\\File_II"), watchService);
+	           registerDir(Paths.get("C:\\Projeto\\ODS\\File_III"), watchService);
+	           registerDir(Paths.get("C:\\Projeto\\ODS\\File_IV"), watchService);
+	           registerDir(Paths.get("C:\\Projeto\\ODS\\File_V"), watchService);
+	           startListening(watchService);
+	       }
+	   }
+
+	   private static void registerDir (Path path, WatchService watchService) throws
+	                       IOException {
+
+		   	
+	       if (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+	           return;
+	       }
+
+	       System.out.println("registering: " + path);
+	       
+	       WatchKey key = path.register(watchService,
+	                           StandardWatchEventKinds.ENTRY_CREATE,
+	                           StandardWatchEventKinds.ENTRY_DELETE);
+	       keyPathMap.put(key, path);
+
+
+	       for (File f : path.toFile().listFiles()) {
+	           registerDir(f.toPath(), watchService);
+	       }
+	   }
+
+	   private static void startListening (WatchService watchService) throws Exception {
+	       while (true) {
+	           WatchKey queuedKey = watchService.take();
+	           
+	           for (WatchEvent<?> watchEvent : queuedKey.pollEvents()) {
+	        	   
+	       			Date date = new Date();
+	            	long time = date.getTime();
+	            	Timestamp ts = new Timestamp(time);
+
+
+	            	System.out.print("Event Kind: " + watchEvent.kind() + " - " + 
+	            							"Current Time Stamp: " + ts + " - ");
+	            	
+
+	               //do something useful here
+
+	               if (watchEvent.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
+	                   //this is not a complete path
+	                   Path path = (Path) watchEvent.context();
+	                   //need to get parent path
+	                   Path parentPath = keyPathMap.get(queuedKey);
+	                   //get complete path
+	                   path = parentPath.resolve(path);
+	                   registerDir(path, watchService);
+	                   System.out.println(path);
+	               }
+	               
+	               if (watchEvent.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+	                   //this is not a complete path
+	                   Path path = (Path) watchEvent.context();
+	                   //need to get parent path
+	                   Path parentPath = keyPathMap.get(queuedKey);
+	                   //get complete path
+	                   path = parentPath.resolve(path);
+	                   registerDir(path, watchService);
+	                   System.out.println(path);
+	               }
+	           }
+	           if(!queuedKey.reset()){
+	               keyPathMap.remove(queuedKey);
+	           }
+	           if(keyPathMap.isEmpty()){
+	               break;
+	           }
+	       }
+	   }
+}
